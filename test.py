@@ -33,78 +33,76 @@ class ImportOFF(bpy.types.Operator, ImportHelper):
             to_up='Z'
         ).to_4x4()
 
-        mesh = load(self, context, keywords["filepath"])
+        mesh, verts = load(keywords["filepath"])
         if not mesh:
             return {'CANCELLED'}
-
-        scene = bpy.context.scene
+        
         obj = bpy.data.objects.new(mesh.name, mesh)
-        scene.collection.objects.link(obj)
-
+        bpy.context.collection.objects.link(obj)
         obj.matrix_world = global_matrix
-
-        layer = bpy.context.view_layer
-        layer.update()
 
         return {'FINISHED'}
 
 
-def load(operator, context, filepath):
+def load(filepath):
     """清理旧的mesh对象"""
     for obj in bpy.context.scene.objects:
         if obj.type == 'MESH':  # 仅删除Mesh对象
             bpy.data.objects.remove(obj)
-
-    filepath = os.fsencode(filepath)    # 文件路径转编码
-    # print(filepath)
-
-    file = open(filepath, 'r')
-    # print(file)
     
-    """第一部分 OFF/COFF 是否使用颜色"""
-    first_line = file.readline().rstrip()   # OFF->没有颜色, COFF->包含颜色, 这里是OFF
-    use_colors = (first_line == 'COFF')
-    # print(use_colors)
-    
-    """第二部分 顶点,面,边的数量"""
-    line = file.readline()
-    while line.isspace() or line[0]=='#':
-        line = file.readline()
-    
-    print(line)
+    # """按行打印.off文件"""
+    # output_txt_path = r"C:\Users\84077\Desktop\tmp.txt"
+    # with open(filepath, 'r') as file, open(output_txt_path, 'w') as output_file:
+    #     line = file.readline().strip()
+    #     while line:
+    #         output_file.write(line)  # 将每行内容写入 .txt 文件
+    #         line = file.readline()  # 读取下一行
+    # print(f"已将 {filepath} 内容写入 {output_txt_path}")
 
-    (vcount, fcount, ecount) = (int(x) for x in line.split()) # 顶点数, 面数, 边数
-    print("顶点数:\t%s\n面数:\t%s\n边数:\t%s\n" % (vcount, fcount, ecount))
-
-    """遍历顶点"""
+    """解析颜色,顶点,面,边"""
     verts = []
     facets = []
     edges = []
-    i = 0
-    while i < vcount:
-        line = file.readline()
-        if line.isspace():
-            continue
-        (px, py, pz) = (float(x) for x in line.split())
-        verts.append((px, py, pz))
-        i = i + 1
-    # print(verts)
+    with open(os.fsencode(filepath), 'r') as file:
+        first_line = file.readline().strip()    # 读取第一行
+        if "OFF" in first_line and len(first_line) > 3:
+            line = first_line[3:]   # 格式1:从第4个字符起分割
+        elif first_line == "OFF":
+            line = file.readline().strip()  # 格式2:第一行是OFF, 下一行是顶点、面、边数量
+        else:
+            raise ValueError("first line is other format!")
 
-    """遍历面"""
-    i = 0
-    while i < fcount:
-        line = file.readline()
-        if line.isspace():
-            continue
-        splitted  = line.split()
-        ids = list(map(int, splitted))
-        if len(ids) > 3:
-            facets.append(tuple(ids[1:]))
-        elif len(ids) == 3:
-            edges.append(tuple(ids[1:]))
-        i = i + 1
-    # print(facets)
-    # print(edges)
+        use_colors = True # # OFF->没有颜色, COFF->包含颜色, 这里默认是OFF
+        # print(use_colors)
+
+        (vcount, fcount, ecount) = (int(x) for x in line.split()) # 顶点数, 面数, 边数
+
+        """遍历顶点"""
+        i = 0
+        while i < vcount:
+            line = file.readline().strip()
+            (px, py, pz) = (float(x) for x in line.split())
+            verts.append((px, py, pz))
+            i = i + 1
+        # print(verts)
+
+        """遍历面"""
+        i = 0
+        while i < fcount:
+            line = file.readline().strip()
+            splitted  = line.split()
+            ids = list(map(int, splitted))
+            if len(ids) > 3:
+                facets.append(tuple(ids[1:]))
+            elif len(ids) == 3:
+                edges.append(tuple(ids[1:]))
+            i = i + 1
+
+        """检查数据解析"""
+        if len(verts) != vcount or len(facets) != fcount or len(edges) != ecount:
+            raise ValueError("data parse is error!")
+        
+        print("顶点数:\t%d\n面数:\t%d\n边数:\t%d\n" % (vcount, fcount, ecount))
 
     mesh_name = bpy.path.display_name_from_filepath(filepath)
     mesh = bpy.data.meshes.new(name=mesh_name)
@@ -113,7 +111,7 @@ def load(operator, context, filepath):
     mesh.validate()
     mesh.update()
 
-    return mesh
+    return mesh, verts
 
 
 class ExportOFF(bpy.types.Operator):
