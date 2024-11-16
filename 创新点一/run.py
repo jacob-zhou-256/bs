@@ -11,7 +11,7 @@ def main():
     model_save_path = "/root/autodl-tmp"
     learning_rate = 5e-5
     weight_decay = 0.001
-    num_epochs = 30
+    num_epochs = 20
     num_classes = len(os.listdir(dataset_path))
     """第一阶段 单视图特征提取"""
     cnet = SingleViewFeatureExtract(num_classes)
@@ -27,7 +27,7 @@ def main():
     trainer.train(num_epochs, model_save_path)
 
     """第二阶段 多视图特征融合"""
-    cnet2 = MultiViewFeatureFuse(cnet, num_classes)
+    cnet2 = MultiViewFeatureFuse(num_classes, model_save_path)
     optimizer = optim.Adam(cnet2.parameters(), lr=learning_rate, weight_decay=weight_decay, betas=(0.9, 0.999))
 
     train_dataset = MultiViewDataset(dataset_path, "train")

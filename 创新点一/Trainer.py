@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import os
 from torch.autograd import Variable
 
 class ModelTrainer():
@@ -18,6 +19,7 @@ class ModelTrainer():
     
     def train(self, n_epochs, save_path):
         best_acc = 0.0
+        out_path = os.path.join(save_path, "log.txt")
         for epoch in range(n_epochs):
             # 模型训练阶段
             self.model.train()
@@ -73,12 +75,13 @@ class ModelTrainer():
 
             test_acc = test_correct_samples.float() / test_total_samples # 当前eopch测试准确率
 
-            print("stage %d, epoch %d: train_loss %.3f, train_acc %.3f, test_acc %.3f" % (self.stage, epoch+1, loss, train_acc, test_acc))
+            content = "stage %d, epoch %d: train_loss %.3f, train_acc %.3f, test_acc %.3f" % (self.stage, epoch+1, loss, train_acc, test_acc)
+            log_to_file(out_path, content)
             
             # 保存最优训练结果
             if test_acc > best_acc:
                 best_acc = test_acc
-                self.model.save(save_path, epoch)
+                self.model.save(save_path)
             
             # 调整学习率
             if (epoch + 1) % 10 == 0:
@@ -86,4 +89,10 @@ class ModelTrainer():
                     param_group["lr"] = param_group["lr"] * 0.5
         
         # 打印最终结果
-        print("模型准确率为 %.3f" % (best_acc))
+        content = "模型准确率为 %.3f" % (best_acc)
+        log_to_file(out_path, content)
+
+
+def log_to_file( out_file, content):
+    with open(out_file, "a") as f:
+        f.write(content + "\n")
