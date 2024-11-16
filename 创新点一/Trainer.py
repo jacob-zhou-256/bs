@@ -3,7 +3,8 @@ import torch
 from torch.autograd import Variable
 
 class ModelTrainer():
-    def __init__(self, model, train_loader, test_loader, optimizer, loss_fn, view_num=12):
+    def __init__(self, stage, model, train_loader, test_loader, optimizer, loss_fn, view_num=12):
+        self.stage = stage
         self.model = model
         self.train_loader = train_loader
         self.test_loader = test_loader
@@ -30,7 +31,11 @@ class ModelTrainer():
             train_correct_samples = 0
             train_total_samples = 0
             for idx, _, data in self.train_loader:
-                data = data.cuda()
+                if self.stage == 1: # 第一阶段
+                    data = data.cuda()
+                else:               # 第二阶段
+                    N, V, C, H, W = data.size()
+                    data = Variable(data).view(-1, C, H, W).cuda()
                 target = Variable(idx).cuda().long()
                 self.optimizer.zero_grad()  # 旧梯度清空
                 out_put = self.model(data)  # 前向传播
@@ -50,8 +55,12 @@ class ModelTrainer():
             self.model.eval()
             test_correct_samples = 0
             test_total_samples = 0
-            for idx, _, data in self.test_loader:
-                data = data.cuda()
+            for idx, _, data in self.train_loader:
+                if self.stage == 1: # 第一阶段
+                    data = data.cuda()
+                else:               # 第二阶段
+                    N, V, C, H, W = data.size()
+                    data = Variable(data).view(-1, C, H, W).cuda()
                 target = Variable(idx).cuda().long()
                 out_put = self.model(data)
                 pred = torch.max(out_put, 1)[1]
@@ -64,7 +73,7 @@ class ModelTrainer():
 
             test_acc = test_correct_samples.float() / test_total_samples # 当前eopch测试准确率
 
-            print("epoch %d: train_loss %.3f, train_acc %.3f, test_acc %.3f" % (epoch+1, loss, train_acc, test_acc))
+            print("stage %d, epoch %d: train_loss %.3f, train_acc %.3f, test_acc %.3f" % (self.stage, epoch+1, loss, train_acc, test_acc))
             
             # 保存最优训练结果
             if test_acc > best_acc:
